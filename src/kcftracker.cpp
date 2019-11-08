@@ -91,7 +91,7 @@ the use of this software, even if advised of the possibility of such damage.
 //#define M_PI 3.14159265358979323846
 
 // Constructor
-KCFTracker::KCFTracker(const bool& hog, const bool& fixed_window, const bool& multiscale, const bool& lab)
+KCFTracker::KCFTracker(const bool& hog, const bool& fixed_window, const bool& multiscale, const bool& lab, const float& lost_thresh)
 {
     // Parameters equal in all cases
     lambda = 0.0001;
@@ -102,6 +102,7 @@ KCFTracker::KCFTracker(const bool& hog, const bool& fixed_window, const bool& mu
     _labfeatures = lab;
     _multiscale = multiscale;
     _fixed_window = fixed_window;
+    _lost_thresh = lost_thresh;
 
     // Set the parameters depending on the KCF mode
     setParameters();
@@ -160,6 +161,8 @@ if (_hogfeatures) {    // HOG
         template_size = 1;
         scale_step = 1;
     }
+
+    _last_peak = -1.0;
 }
 
 // Initialize tracker
@@ -176,7 +179,7 @@ void KCFTracker::init(const cv::Rect &roi, const cv::Mat& image)
  }
 
 // Update position based on the new frame
-cv::Rect KCFTracker::update(const cv::Mat& image)
+cv::Rect KCFTracker::update(const cv::Mat& image, bool& lost_track)
 {
     if (_roi.x + _roi.width <= 0) _roi.x = -_roi.width + 1;
     if (_roi.y + _roi.height <= 0) _roi.y = -_roi.height + 1;
@@ -214,6 +217,13 @@ cv::Rect KCFTracker::update(const cv::Mat& image)
             _roi.height *= scale_step;
         }
     }
+
+    // Check if we lost track
+    lost_track = false;
+    if (_last_peak > 0 && peak_value < _lost_thresh * _last_peak) {
+      lost_track = true;
+    }
+    _last_peak = peak_value;
 
     // Adjust by cell size and _scale
     _roi.x = cx - _roi.width / 2.0f + ((float) res.x * cell_size * _scale);
